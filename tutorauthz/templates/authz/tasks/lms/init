@@ -1,0 +1,10 @@
+# Load default policies into the necessary services
+
+# Check if openedx-authz package is installed
+if python -c "import pkg_resources; pkg_resources.require('openedx-authz')" 2>/dev/null; then
+    ./manage.py lms load_policies
+else
+    echo "Warning: openedx-authz package is not installed. Skipping policy loading."
+    exit 0
+fi
+
