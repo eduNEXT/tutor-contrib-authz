@@ -3,7 +3,7 @@
 
 [project]
 name = "tutor-contrib-authz"
-description = "Authorization Framework for Open edX - Tutor"
+description = "Authorization Framework for Open edX - Tutor plugin"
 authors = [
   { name = "Open edX"},
   { email = "oscm@openedx.org" },

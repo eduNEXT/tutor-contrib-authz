@@ -1,2 +1,2 @@
 RUN --mount=type=cache,target=/openedx/.cache/pip,sharing=shared \
-    pip install "openedx-authz==v0.3.0"
+    pip install git+https://github.com/openedx/openedx-authz.git@main
