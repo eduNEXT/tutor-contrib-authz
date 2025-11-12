@@ -6,17 +6,35 @@ if python -c "import pkg_resources; pkg_resources.require('openedx-authz')" 2>/d
     echo "Starting openedx-authz initialization tasks"
     echo "================================================================================"
 
+    # Step 0: Pre-cleanup any existing test data from previous runs
+    echo ""
+    echo "[0/7] Pre-cleanup: Checking for existing test data from previous runs..."
+    echo "--------------------------------------------------------------------------------"
+    echo "Attempting to clean up any leftover test data (objects with 'tmlp_' prefix)..."
+    if ./manage.py lms mock_migrate cleanup 2>&1; then
+        echo "✓ Pre-cleanup completed - database is clean"
+    else
+        EXIT_CODE=$?
+        echo "ℹ No test data found or cleanup not needed (exit code: ${EXIT_CODE})"
+        echo "This is normal if this is the first run or previous runs cleaned up properly."
+    fi
+
     # Step 1: Setup mock data for migration testing
     echo ""
-    echo "[1/6] Setting up mock migration test data..."
+    echo "[1/7] Setting up mock migration test data..."
     echo "--------------------------------------------------------------------------------"
     if ./manage.py lms mock_migrate setup 2>&1; then
         echo "✓ Mock migration test data setup completed successfully"
     else
         EXIT_CODE=$?
         echo "✗ FAILED: Mock migration test data setup failed with exit code ${EXIT_CODE}"
-        echo "This may be because the data already exists or there's a configuration issue."
-        echo "Continuing with migration anyway..."
+        echo "This may be because:"
+        echo "  - There's a database configuration issue"
+        echo "  - Required models (Organization, ContentLibrary) are not available"
+        echo "  - Database migrations are not up to date"
+        echo "Please check the error messages above for more details."
+        echo "Exiting to prevent running migration on incomplete test data..."
+        exit ${EXIT_CODE}
     fi
 
     # Step 2: Run the legacy permissions migration
