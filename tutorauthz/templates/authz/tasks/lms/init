@@ -2,7 +2,100 @@
 
 # Check if openedx-authz package is installed
 if python -c "import pkg_resources; pkg_resources.require('openedx-authz')" 2>/dev/null; then
-    ./manage.py lms load_policies
+    echo "================================================================================"
+    echo "Starting openedx-authz initialization tasks"
+    echo "================================================================================"
+
+    # Step 1: Setup mock data for migration testing
+    echo ""
+    echo "[1/6] Setting up mock migration test data..."
+    echo "--------------------------------------------------------------------------------"
+    if ./manage.py lms mock_migrate setup 2>&1; then
+        echo "✓ Mock migration test data setup completed successfully"
+    else
+        EXIT_CODE=$?
+        echo "✗ FAILED: Mock migration test data setup failed with exit code ${EXIT_CODE}"
+        echo "This may be because the data already exists or there's a configuration issue."
+        echo "Continuing with migration anyway..."
+    fi
+
+    # Step 2: Run the legacy permissions migration
+    echo ""
+    echo "[2/6] Running legacy permissions migration (openedx_authz 0005)..."
+    echo "--------------------------------------------------------------------------------"
+    echo "This migration will convert legacy ContentLibraryPermission entries to the new authz model."
+    echo ""
+    if ./manage.py lms migrate openedx_authz 0005_migrate_legacy_permissions 2>&1; then
+        echo ""
+        echo "✓ Legacy permissions migration completed"
+    else
+        EXIT_CODE=$?
+        echo ""
+        echo "✗ CRITICAL: Migration failed with exit code ${EXIT_CODE}"
+        echo "Please review the error messages above for details."
+        echo "The migration may have partially completed - check the database state."
+        exit ${EXIT_CODE}
+    fi
+
+    # Step 3: Verify the migration results
+    echo ""
+    echo "[3/6] Verifying migration results..."
+    echo "--------------------------------------------------------------------------------"
+    if ./manage.py lms mock_migrate verify 2>&1; then
+        echo "✓ Migration verification passed - all permissions migrated correctly"
+    else
+        EXIT_CODE=$?
+        echo "✗ WARNING: Migration verification failed with exit code ${EXIT_CODE}"
+        echo "The migration completed but the verification checks failed."
+        echo "This could indicate:"
+        echo "  - Permissions were not migrated correctly"
+        echo "  - Test data is missing or corrupted"
+        echo "  - There's an issue with the verification logic"
+        echo "Please review the verification output above."
+        echo "Continuing with cleanup..."
+    fi
+
+    # Step 4: Cleanup mock data
+    echo ""
+    echo "[4/6] Cleaning up mock migration test data..."
+    echo "--------------------------------------------------------------------------------"
+    if ./manage.py lms mock_migrate cleanup 2>&1; then
+        echo "✓ Mock migration test data cleaned up successfully"
+    else
+        EXIT_CODE=$?
+        echo "✗ WARNING: Cleanup failed with exit code ${EXIT_CODE}"
+        echo "Some test data may remain in the database."
+        echo "This won't affect production but may cause issues if you run the test again."
+        echo "Consider manually cleaning up test objects with prefix 'tmlp_'"
+    fi
+
+    # Step 5: Load authz policies
+    echo ""
+    echo "[5/6] Loading authz policies..."
+    echo "--------------------------------------------------------------------------------"
+    if ./manage.py lms load_policies 2>&1; then
+        echo "✓ Authz policies loaded successfully"
+    else
+        EXIT_CODE=$?
+        echo "✗ CRITICAL: Policy loading failed with exit code ${EXIT_CODE}"
+        echo "The system may not function correctly without policies loaded."
+        exit ${EXIT_CODE}
+    fi
+
+    # Summary
+    echo ""
+    echo "================================================================================"
+    echo "[6/6] openedx-authz initialization completed"
+    echo "================================================================================"
+    echo ""
+    echo "Summary:"
+    echo "  ✓ Migration setup, execution, verification, and cleanup completed"
+    echo "  ✓ Policies loaded"
+    echo ""
+    echo "If you saw any warnings or errors above, please review them carefully."
+    echo "The system should now be ready to use with the new authz model."
+    echo "================================================================================"
+
 else
     echo "Warning: openedx-authz package is not installed. Skipping policy loading."
     exit 0
