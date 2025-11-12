@@ -3,119 +3,135 @@
 # Check if openedx-authz package is installed
 if python -c "import pkg_resources; pkg_resources.require('openedx-authz')" 2>/dev/null; then
     echo "================================================================================"
-    echo "Starting openedx-authz initialization tasks"
+    echo "[AUTHZ-INIT] Starting openedx-authz initialization tasks"
     echo "================================================================================"
 
     # Step 0: Pre-cleanup any existing test data from previous runs
     echo ""
-    echo "[0/7] Pre-cleanup: Checking for existing test data from previous runs..."
+    echo "[AUTHZ-INIT:PRE-CLEANUP] [0/7] Checking for existing test data from previous runs..."
     echo "--------------------------------------------------------------------------------"
-    echo "Attempting to clean up any leftover test data (objects with 'tmlp_' prefix)..."
+    echo "[AUTHZ-INIT:PRE-CLEANUP] Attempting to clean up leftover test data (objects with 'tmlp_' prefix)..."
     if ./manage.py lms mock_migrate cleanup 2>&1; then
-        echo "✓ Pre-cleanup completed - database is clean"
+        echo "[AUTHZ-INIT:PRE-CLEANUP] ✓ SUCCESS: Pre-cleanup completed - database is clean"
     else
         EXIT_CODE=$?
-        echo "ℹ No test data found or cleanup not needed (exit code: ${EXIT_CODE})"
-        echo "This is normal if this is the first run or previous runs cleaned up properly."
+        echo "[AUTHZ-INIT:PRE-CLEANUP] ℹ INFO: No test data found or cleanup not needed (exit code: ${EXIT_CODE})"
+        echo "[AUTHZ-INIT:PRE-CLEANUP] This is normal if this is the first run or previous runs cleaned up properly."
     fi
 
     # Step 1: Setup mock data for migration testing
     echo ""
-    echo "[1/7] Setting up mock migration test data..."
+    echo "[AUTHZ-INIT:SETUP] [1/7] Setting up mock migration test data..."
     echo "--------------------------------------------------------------------------------"
     if ./manage.py lms mock_migrate setup 2>&1; then
-        echo "✓ Mock migration test data setup completed successfully"
+        echo "[AUTHZ-INIT:SETUP] ✓ SUCCESS: Mock migration test data setup completed successfully"
     else
         EXIT_CODE=$?
-        echo "✗ FAILED: Mock migration test data setup failed with exit code ${EXIT_CODE}"
-        echo "This may be because:"
-        echo "  - There's a database configuration issue"
-        echo "  - Required models (Organization, ContentLibrary) are not available"
-        echo "  - Database migrations are not up to date"
-        echo "Please check the error messages above for more details."
-        echo "Exiting to prevent running migration on incomplete test data..."
+        echo "[AUTHZ-INIT:SETUP] ✗ FAILURE: Mock migration test data setup failed with exit code ${EXIT_CODE}"
+        echo "[AUTHZ-INIT:SETUP] This may be because:"
+        echo "[AUTHZ-INIT:SETUP]   - There's a database configuration issue"
+        echo "[AUTHZ-INIT:SETUP]   - Required models (Organization, ContentLibrary) are not available"
+        echo "[AUTHZ-INIT:SETUP]   - Database migrations are not up to date"
+        echo "[AUTHZ-INIT:SETUP] Please check the error messages above for more details."
+        echo "[AUTHZ-INIT:SETUP] Exiting to prevent running migration on incomplete test data..."
         exit ${EXIT_CODE}
     fi
 
     # Step 2: Run the legacy permissions migration
     echo ""
-    echo "[2/6] Running legacy permissions migration (openedx_authz 0005)..."
+    echo "[AUTHZ-INIT:MIGRATION] [2/7] Running legacy permissions migration (openedx_authz 0005)..."
     echo "--------------------------------------------------------------------------------"
-    echo "This migration will convert legacy ContentLibraryPermission entries to the new authz model."
+    echo "[AUTHZ-INIT:MIGRATION] This migration will convert legacy ContentLibraryPermission entries to the new authz model."
     echo ""
     if ./manage.py lms migrate openedx_authz 0005_migrate_legacy_permissions 2>&1; then
         echo ""
-        echo "✓ Legacy permissions migration completed"
+        echo "[AUTHZ-INIT:MIGRATION] ✓ SUCCESS: Legacy permissions migration completed"
     else
         EXIT_CODE=$?
         echo ""
-        echo "✗ CRITICAL: Migration failed with exit code ${EXIT_CODE}"
-        echo "Please review the error messages above for details."
-        echo "The migration may have partially completed - check the database state."
+        echo "[AUTHZ-INIT:MIGRATION] ✗ CRITICAL: Migration failed with exit code ${EXIT_CODE}"
+        echo "[AUTHZ-INIT:MIGRATION] Please review the error messages above for details."
+        echo "[AUTHZ-INIT:MIGRATION] The migration may have partially completed - check the database state."
         exit ${EXIT_CODE}
     fi
 
     # Step 3: Verify the migration results
     echo ""
-    echo "[3/6] Verifying migration results..."
+    echo "[AUTHZ-INIT:VERIFY] [3/7] Verifying migration results..."
     echo "--------------------------------------------------------------------------------"
     if ./manage.py lms mock_migrate verify 2>&1; then
-        echo "✓ Migration verification passed - all permissions migrated correctly"
+        echo "[AUTHZ-INIT:VERIFY] ✓ SUCCESS: Migration verification passed - all permissions migrated correctly"
     else
         EXIT_CODE=$?
-        echo "✗ WARNING: Migration verification failed with exit code ${EXIT_CODE}"
-        echo "The migration completed but the verification checks failed."
-        echo "This could indicate:"
-        echo "  - Permissions were not migrated correctly"
-        echo "  - Test data is missing or corrupted"
-        echo "  - There's an issue with the verification logic"
-        echo "Please review the verification output above."
-        echo "Continuing with cleanup..."
+        echo "[AUTHZ-INIT:VERIFY] ✗ WARNING: Migration verification failed with exit code ${EXIT_CODE}"
+        echo "[AUTHZ-INIT:VERIFY] The migration completed but the verification checks failed."
+        echo "[AUTHZ-INIT:VERIFY] This could indicate:"
+        echo "[AUTHZ-INIT:VERIFY]   - Permissions were not migrated correctly"
+        echo "[AUTHZ-INIT:VERIFY]   - Test data is missing or corrupted"
+        echo "[AUTHZ-INIT:VERIFY]   - There's an issue with the verification logic"
+        echo "[AUTHZ-INIT:VERIFY] Please review the verification output above."
+        echo "[AUTHZ-INIT:VERIFY] Continuing with cleanup..."
     fi
 
     # Step 4: Cleanup mock data
     echo ""
-    echo "[4/6] Cleaning up mock migration test data..."
+    echo "[AUTHZ-INIT:CLEANUP] [4/7] Cleaning up mock migration test data..."
     echo "--------------------------------------------------------------------------------"
     if ./manage.py lms mock_migrate cleanup 2>&1; then
-        echo "✓ Mock migration test data cleaned up successfully"
+        echo "[AUTHZ-INIT:CLEANUP] ✓ SUCCESS: Mock migration test data cleaned up successfully"
     else
         EXIT_CODE=$?
-        echo "✗ WARNING: Cleanup failed with exit code ${EXIT_CODE}"
-        echo "Some test data may remain in the database."
-        echo "This won't affect production but may cause issues if you run the test again."
-        echo "Consider manually cleaning up test objects with prefix 'tmlp_'"
+        echo "[AUTHZ-INIT:CLEANUP] ✗ WARNING: Cleanup failed with exit code ${EXIT_CODE}"
+        echo "[AUTHZ-INIT:CLEANUP] Some test data may remain in the database."
+        echo "[AUTHZ-INIT:CLEANUP] This won't affect production but may cause issues if you run the test again."
+        echo "[AUTHZ-INIT:CLEANUP] Consider manually cleaning up test objects with prefix 'tmlp_'"
     fi
 
-    # Step 5: Load authz policies
+    # Step 5: Rollback migration to prepare for production run
     echo ""
-    echo "[5/6] Loading authz policies..."
+    echo "[AUTHZ-INIT:ROLLBACK] [5/7] Rolling back test migration..."
     echo "--------------------------------------------------------------------------------"
-    if ./manage.py lms load_policies 2>&1; then
-        echo "✓ Authz policies loaded successfully"
+    echo "[AUTHZ-INIT:ROLLBACK] Rolling back to migration 0004 to prepare for clean production migration run..."
+    if ./manage.py lms migrate openedx_authz 0004 2>&1; then
+        echo "[AUTHZ-INIT:ROLLBACK] ✓ SUCCESS: Migration rolled back successfully to 0004"
     else
         EXIT_CODE=$?
-        echo "✗ CRITICAL: Policy loading failed with exit code ${EXIT_CODE}"
-        echo "The system may not function correctly without policies loaded."
+        echo "[AUTHZ-INIT:ROLLBACK] ✗ WARNING: Migration rollback failed with exit code ${EXIT_CODE}"
+        echo "[AUTHZ-INIT:ROLLBACK] The migration may still be at 0005. This could cause issues if you need"
+        echo "[AUTHZ-INIT:ROLLBACK] to run the migration again with production data."
+        echo "[AUTHZ-INIT:ROLLBACK] Continuing with policy loading..."
+    fi
+
+    # Step 6: Load authz policies
+    echo ""
+    echo "[AUTHZ-INIT:LOAD-POLICIES] [6/7] Loading authz policies..."
+    echo "--------------------------------------------------------------------------------"
+    if ./manage.py lms load_policies 2>&1; then
+        echo "[AUTHZ-INIT:LOAD-POLICIES] ✓ SUCCESS: Authz policies loaded successfully"
+    else
+        EXIT_CODE=$?
+        echo "[AUTHZ-INIT:LOAD-POLICIES] ✗ CRITICAL: Policy loading failed with exit code ${EXIT_CODE}"
+        echo "[AUTHZ-INIT:LOAD-POLICIES] The system may not function correctly without policies loaded."
         exit ${EXIT_CODE}
     fi
 
     # Summary
     echo ""
     echo "================================================================================"
-    echo "[6/6] openedx-authz initialization completed"
+    echo "[AUTHZ-INIT:SUMMARY] [7/7] openedx-authz initialization completed"
     echo "================================================================================"
     echo ""
-    echo "Summary:"
-    echo "  ✓ Migration setup, execution, verification, and cleanup completed"
-    echo "  ✓ Policies loaded"
+    echo "[AUTHZ-INIT:SUMMARY] Summary:"
+    echo "[AUTHZ-INIT:SUMMARY]   ✓ Migration setup, execution, verification, and cleanup completed"
+    echo "[AUTHZ-INIT:SUMMARY]   ✓ Migration rolled back to prepare for production"
+    echo "[AUTHZ-INIT:SUMMARY]   ✓ Policies loaded"
     echo ""
-    echo "If you saw any warnings or errors above, please review them carefully."
-    echo "The system should now be ready to use with the new authz model."
+    echo "[AUTHZ-INIT:SUMMARY] If you saw any warnings or errors above, please review them carefully."
+    echo "[AUTHZ-INIT:SUMMARY] The system should now be ready to use with the new authz model."
     echo "================================================================================"
 
 else
-    echo "Warning: openedx-authz package is not installed. Skipping policy loading."
+    echo "[AUTHZ-INIT] WARNING: openedx-authz package is not installed. Skipping policy loading."
     exit 0
 fi
 
