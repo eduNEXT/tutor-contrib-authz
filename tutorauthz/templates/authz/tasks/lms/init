@@ -10,13 +10,39 @@ if python -c "import pkg_resources; pkg_resources.require('openedx-authz')" 2>/d
     echo ""
     echo "[AUTHZ-INIT:PRE-CLEANUP] [0/7] Checking for existing test data from previous runs..."
     echo "--------------------------------------------------------------------------------"
+
+    # Clean up test data objects
     echo "[AUTHZ-INIT:PRE-CLEANUP] Attempting to clean up leftover test data (objects with 'tmlp_' prefix)..."
     if ./manage.py lms mock_migrate cleanup 2>&1; then
-        echo "[AUTHZ-INIT:PRE-CLEANUP] ✓ SUCCESS: Pre-cleanup completed - database is clean"
+        echo "[AUTHZ-INIT:PRE-CLEANUP] ✓ Test data cleanup completed"
     else
         EXIT_CODE=$?
         echo "[AUTHZ-INIT:PRE-CLEANUP] ℹ INFO: No test data found or cleanup not needed (exit code: ${EXIT_CODE})"
-        echo "[AUTHZ-INIT:PRE-CLEANUP] This is normal if this is the first run or previous runs cleaned up properly."
+    fi
+
+    # Clear migration record to allow re-running the test migration
+    echo "[AUTHZ-INIT:PRE-CLEANUP] Removing migration 0005_migrate_legacy_permissions from django_migrations table..."
+    echo "[AUTHZ-INIT:PRE-CLEANUP] This allows the migration to be re-run for testing purposes"
+
+    ./manage.py lms shell <<'EOF'
+from django.db.migrations.recorder import MigrationRecorder
+recorder = MigrationRecorder.Migration.objects.filter(
+    app='openedx_authz',
+    name='0005_migrate_legacy_permissions'
+)
+deleted_count = recorder.count()
+recorder.delete()
+if deleted_count > 0:
+    print(f"[AUTHZ-INIT:PRE-CLEANUP] ✓ Removed {deleted_count} migration record(s) for 0005_migrate_legacy_permissions")
+else:
+    print("[AUTHZ-INIT:PRE-CLEANUP] ℹ INFO: Migration 0005 was not in the database (already clean)")
+EOF
+
+    if [ $? -eq 0 ]; then
+        echo "[AUTHZ-INIT:PRE-CLEANUP] ✓ Migration cleanup completed - ready for fresh test run"
+    else
+        echo "[AUTHZ-INIT:PRE-CLEANUP] ✗ WARNING: Failed to clean migration record (exit code: $?)"
+        echo "[AUTHZ-INIT:PRE-CLEANUP] Migration may not run if it's already applied"
     fi
 
     # Step 1: Setup mock data for migration testing
